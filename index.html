@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Penguin or דוס?</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React and ReactDOM CDN -->
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+
+    <!-- Babel for JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pop-correct {
+        0% {
+          transform: scale(0.9);
+        }
+        60% {
+          transform: scale(1.05);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+
+      @keyframes shake-wrong {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20%,
+        60% {
+          transform: translateX(-6px);
+        }
+        40%,
+        80% {
+          transform: translateX(6px);
+        }
+      }
+
+      .animate-fade-in {
+        animation: fade-in 0.4s ease-out both;
+      }
+
+      .animate-pop-correct {
+        animation: pop-correct 0.35s ease-out both;
+      }
+
+      .animate-shake-wrong {
+        animation: shake-wrong 0.4s ease-out both;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-sky-50 flex items-center justify-center px-2 sm:px-4">
+    <div id="root" class="w-full max-w-5xl"></div>
+
+    <script type="text/babel">
+      // Add your own images here; set answer to "penguin" or "דוס".
+      // Example:
+      // { url: "https://example.com/my-penguin.jpg", answer: "penguin" }
+      // { url: "https://example.com/my-dos.jpg", answer: "דוס" }
+      const IMAGES = [
+        {
+          url: "https://hm-news.co.il/wp-content/uploads/2024/06/%D7%94%D7%9C%D7%95%D7%95%D7%99%D7%99%D7%AA-%D7%94%D7%A8%D7%91%D7%A0%D7%99%D7%AA-%D7%9E%D7%92%D7%95%D7%A8.-%D7%A6%D7%99%D7%9C%D7%95%D7%9D-%D7%99%D7%95%D7%A1%D7%99-%D7%A8%D7%95%D7%96%D7%A0%D7%91%D7%95%D7%99%D7%9D-6-768x432.jpeg",
+          answer: "דוס",
+        },
+        {
+          url: "https://us.images.westend61.de/0001274650pw/aerial-view-of-penguins-on-the-south-georgia-island-antarctica-AAEF05213.jpg",
+          answer: "penguin",
+        },
+        {
+          url: "https://kol-barama.co.il/wp-content/uploads/2025/10/%D7%A2%D7%A8%D7%AA.jpg",
+          answer: "דוס",
+        },
+        {
+          url: "https://as2.ftcdn.net/jpg/04/98/58/21/1000_F_498582170_l9zuM5npKLHirMD6AW7wjQsPKFAXtLuF.jpg",
+          answer: "penguin",
+        },
+      ];
+
+      const PHASES = {
+        START: "start",
+        SHOWING: "showing",
+        ANSWERING: "answering",
+        RESULTS: "results",
+      };
+
+      function App() {
+        const [phase, setPhase] = React.useState(PHASES.START);
+        const [currentIndex, setCurrentIndex] = React.useState(0);
+        const [score, setScore] = React.useState(0);
+        const [totalAnswered, setTotalAnswered] = React.useState(0);
+        const [selectedAnswer, setSelectedAnswer] = React.useState(null);
+        const [feedback, setFeedback] = React.useState(null);
+
+        // Timer refs so we can clear them on cleanup
+        const showTimerRef = React.useRef(null);
+        const nextTimerRef = React.useRef(null);
+
+        const totalImages = IMAGES.length;
+
+        const resetTimers = () => {
+          if (showTimerRef.current) {
+            clearTimeout(showTimerRef.current);
+            showTimerRef.current = null;
+          }
+          if (nextTimerRef.current) {
+            clearTimeout(nextTimerRef.current);
+            nextTimerRef.current = null;
+          }
+        };
+
+        const startGame = () => {
+          resetTimers();
+          setScore(0);
+          setTotalAnswered(0);
+          setCurrentIndex(0);
+          setSelectedAnswer(null);
+          setFeedback(null);
+          setPhase(PHASES.SHOWING);
+        };
+
+        const showNextImage = () => {
+          resetTimers();
+          setSelectedAnswer(null);
+          setFeedback(null);
+
+          setCurrentIndex((prev) => {
+            const nextIndex = prev + 1;
+            if (nextIndex >= totalImages) {
+              // No more images; show results will be handled by caller
+              return prev;
+            }
+            return nextIndex;
+          });
+
+          setPhase(PHASES.SHOWING);
+        };
+
+        // Handle the 2-second showing phase
+        React.useEffect(() => {
+          if (phase === PHASES.SHOWING) {
+            resetTimers();
+            showTimerRef.current = setTimeout(() => {
+              setPhase(PHASES.ANSWERING);
+            }, 2000);
+          }
+
+          return () => {
+            if (showTimerRef.current) {
+              clearTimeout(showTimerRef.current);
+              showTimerRef.current = null;
+            }
+          };
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [phase, currentIndex]);
+
+        const handleAnswer = (choice) => {
+          if (phase !== PHASES.ANSWERING) return;
+
+          const current = IMAGES[currentIndex];
+          const isCorrect = current && current.answer === choice;
+
+          setSelectedAnswer(choice);
+          setFeedback(isCorrect ? "correct" : "incorrect");
+          setTotalAnswered((prev) => prev + 1);
+          if (isCorrect) {
+            setScore((prev) => prev + 1);
+          }
+
+          resetTimers();
+
+          nextTimerRef.current = setTimeout(() => {
+            const hasMore = currentIndex + 1 < totalImages;
+            if (hasMore) {
+              showNextImage();
+            } else {
+              setPhase(PHASES.RESULTS);
+            }
+          }, 1000);
+        };
+
+        React.useEffect(() => {
+          return () => {
+            resetTimers();
+          };
+        }, []);
+
+        const renderScore = () => {
+          return (
+            <div className="text-sm sm:text-base text-slate-600">
+              Score:{" "}
+              <span className="font-semibold text-slate-800">
+                {score}/{totalAnswered}
+              </span>
+            </div>
+          );
+        };
+
+        const renderStart = () => (
+          <div className="animate-fade-in flex flex-col gap-6 items-center text-center">
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">
+              Penguin or דוס?
+            </h1>
+            <button
+              onClick={startGame}
+              className="inline-flex items-center justify-center px-8 py-3 rounded-full bg-sky-600 text-white font-semibold text-lg shadow-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-sky-50 transition"
+            >
+              Play
+            </button>
+          </div>
+        );
+
+        const renderShowing = () => {
+          const current = IMAGES[currentIndex];
+          return (
+            <div className="animate-fade-in flex flex-col gap-5">
+              <div className="flex items-center justify-between">
+                <div className="text-xs uppercase tracking-wide text-sky-600 font-semibold">
+                  Round {currentIndex + 1} of {totalImages}
+                </div>
+                {renderScore()}
+              </div>
+              <div className="relative w-full h-[60vh] sm:h-[70vh] bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center shadow-inner">
+                {current ? (
+                  <img
+                    src={current.url}
+                    alt="Guess: Penguin or דוס?"
+                    className="max-h-full max-w-full object-contain animate-fade-in"
+                  />
+                ) : (
+                  <div className="text-slate-400 text-sm">No image</div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const renderAnswering = () => {
+          const isCorrect = feedback === "correct";
+          const isIncorrect = feedback === "incorrect";
+
+          return (
+            <div className="animate-fade-in flex flex-col gap-5">
+              <div className="flex items-center justify-between">
+                <div className="text-xs uppercase tracking-wide text-sky-600 font-semibold">
+                  Round {currentIndex + 1} of {totalImages}
+                </div>
+                {renderScore()}
+              </div>
+
+              <div
+                className={
+                  "flex flex-col sm:flex-row gap-3 sm:gap-4 " +
+                  (isIncorrect ? "animate-shake-wrong" : "")
+                }
+              >
+                <button
+                  onClick={() => handleAnswer("penguin")}
+                  className={
+                    "flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl border text-lg font-semibold transition shadow-sm " +
+                    (selectedAnswer === "penguin"
+                      ? isCorrect
+                        ? "bg-emerald-500 border-emerald-500 text-white"
+                        : "bg-rose-500 border-rose-500 text-white"
+                      : "bg-white border-slate-200 text-slate-800 hover:border-sky-300 hover:bg-sky-50")
+                  }
+                >
+                  Penguin
+                </button>
+                <button
+                  onClick={() => handleAnswer("דוס")}
+                  className={
+                    "flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl border text-lg font-semibold transition shadow-sm " +
+                    (selectedAnswer === "דוס"
+                      ? isCorrect
+                        ? "bg-emerald-500 border-emerald-500 text-white"
+                        : "bg-rose-500 border-rose-500 text-white"
+                      : "bg-white border-slate-200 text-slate-800 hover:border-sky-300 hover:bg-sky-50")
+                  }
+                >
+                  דוס
+                </button>
+              </div>
+
+              {feedback && (
+                <div
+                  className={
+                    "text-center font-semibold text-base sm:text-lg " +
+                    (isCorrect
+                      ? "text-emerald-600 animate-pop-correct"
+                      : "text-rose-600")
+                  }
+                >
+                  {isCorrect ? "Correct! 🎉" : "Not quite…"}
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const renderResults = () => {
+          const accuracy =
+            totalImages > 0 ? Math.round((score / totalImages) * 100) : 0;
+
+          return (
+            <div className="animate-fade-in flex flex-col gap-5 items-center text-center">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
+                Final Score
+              </h2>
+              <div className="text-4xl sm:text-5xl font-extrabold text-sky-600">
+                {score}/{totalImages}
+              </div>
+              <div className="text-slate-600 text-base sm:text-lg">
+                Accuracy:{" "}
+                <span className="font-semibold text-slate-800">
+                  {accuracy}%
+                </span>
+              </div>
+              <button
+                onClick={() => setPhase(PHASES.START)}
+                className="mt-2 inline-flex items-center justify-center px-6 py-3 rounded-full bg-sky-600 text-white font-semibold text-lg shadow-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-sky-50 transition"
+              >
+                Play Again
+              </button>
+            </div>
+          );
+        };
+
+        return (
+          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 flex flex-col gap-6 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-xs uppercase tracking-[0.2em] text-sky-500 font-semibold">
+                  Mini Game
+                </span>
+                <span className="text-lg font-semibold text-slate-900">
+                  Penguin or דוס?
+                </span>
+              </div>
+              {phase !== PHASES.START && phase !== PHASES.RESULTS && (
+                <button
+                  onClick={() => setPhase(PHASES.START)}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
+                >
+                  Restart
+                </button>
+              )}
+            </div>
+
+            {phase === PHASES.START && renderStart()}
+            {phase === PHASES.SHOWING && renderShowing()}
+            {phase === PHASES.ANSWERING && renderAnswering()}
+            {phase === PHASES.RESULTS && renderResults()}
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
+
+
